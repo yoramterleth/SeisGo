@@ -142,7 +142,7 @@ def get_sta_list(net_list, sta_list, chan_list, starttime, endtime, fname=None,\
 #
 def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             rmresp=True,rmresp_output='VEL',pre_filt=None,debug=False,
-            sacheader=False,getstainv=False,verbose=False):
+            sacheader=False,getstainv=False,verbose=False,credentials=None):
     """
     This is a wrapper that downloads seismic data and (optionally) removes response
     and downsamples if needed. Most of the arguments have the same meaning as for
@@ -175,7 +175,8 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
             Plot raw waveforms before and after preprocessing.
     sacheader : bool
             Key sacheader information in a dictionary using the SAC header naming convention.
-    """
+    credentials : credentials for earthscope restricted data 
+            """
     if isinstance(source,str):
         if source == 'IRISPH5':
             client=Client(service_mappings={'dataselect':'http://service.iris.edu/ph5ws/dataselect/1',
@@ -188,6 +189,12 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
         client = source
     else:
         raise ValueError(str(type(source))+" is not supported.")
+
+    # give credentials for the IRIS website
+    if credentials is not None:
+        client.set_credentials(credentials[0],credentials[1])
+        print('Entered credentials: '+credentials[0]+' '+credentials[1])
+
 
     tr = None
     sac=dict() #place holder to save some sac headers.
@@ -343,7 +350,7 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
 def download(starttime, endtime, stationinfo=None, network=None, station=None,channel=None,
                 source='IRIS',rawdatadir=None,sacheader=False, getstainv=True, max_tries=10,
                 savetofile=False,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None,verbose=False):
+                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None,verbose=False,credentials=None):
     """
     starttime, endtime: timing duration for the download.
     stationinfo:
@@ -371,6 +378,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     =============RETURNS============
     trlist: Obspy Stream containing all traces. Note that when savetofile is True, the return will be an empty Stream.
     sta_inv_list: inventory list of the stations. Empty when getstainv is False.
+    credentials : credentials for earthscope restricted data 
     """
     ######################read in station information first.
     if stationinfo is not None:
@@ -451,7 +459,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
 
         for nt in range(max_tries):
             if verbose:print(inet+'.'+ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
-
+            
             t0 = time.time()
 
             rmresp_out_tmp=rmresp_out
@@ -460,7 +468,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             try:
                 output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
-                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose)
+                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose,credentials=credentials)
             except Exception as e:
                 print(e, 'for', ista)
                 time.sleep(1)  # sleep for 1 second before next try.
