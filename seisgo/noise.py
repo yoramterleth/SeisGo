@@ -186,7 +186,8 @@ def do_correlation(sfile,win_len,step,maxlag,cc_method='xcorr',acorr_only=False,
     output_o,output_o_short=helpers.xcorr_output_structure()
     if output_structure not in output_o and output_structure not in output_o_short:
         raise ValueError(output_structure + " is not recoganized. must be one of "+str(output_o)+" or "+str(output_o_short))
-    tname = sfile.split('/')[-1]
+    tname_temp = sfile.split('/')[-1]
+    tname = tname_temp.split("\\")[-1] # also split the string by the other backslash: this was creating problems in windows before. 
     tmpfile = os.path.join(outdir,tname.split('.')[0]+'.tmp')
     if not os.path.isdir(outdir):os.makedirs(outdir,exist_ok = True)
     #file to store CC results.
