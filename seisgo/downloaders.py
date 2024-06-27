@@ -656,7 +656,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         return Stream(tr_all)
 
 def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=None,rm_resp_out='VEL',
-                water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None):
+                water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None,start_dt=None,end_dt=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
@@ -670,6 +670,8 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
     outdir: directory to save the asdf file.
     outfile: filename
+    start_dt: force h5 file out to agglomerate from this startdate
+    end_dt: force h5 file out to agglomerate until this enddate
 
     """
     if isinstance(files,str):files=[files]
@@ -759,8 +761,13 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
                 inv=read_inventory(stainfo)
 
         tag = get_tracetag(tr[0])
-        sdatetime=tr[0].stats.starttime
-        edatetime=tr[0].stats.endtime
+        if start_dt is not None and end_dt is not None:
+            sdatetime = start_dt
+            edatetime = end_dt 
+        else: 
+            sdatetime=tr[0].stats.starttime
+            edatetime=tr[0].stats.endtime
+
         fname = os.path.join(outdir,str(sdatetime).replace(':', '-') + 'T' + str(edatetime).replace(':', '-') + '.h5')
         print(" Saving data to ", fname )
         utils.save2asdf(fname,[tr[0]],[tag],sta_inv=inv)
