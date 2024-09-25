@@ -297,9 +297,9 @@ def getdata(net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
     """
     e. Plot raw data after removing responses.
     """
-    if debug:
-        plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
-                   outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
+    # if debug:
+    #     plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
+    #                outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
 
     #
     if getstainv:return tr,inv
@@ -319,19 +319,27 @@ def in_directory(fname, sta, net, tag):
     if not os.path.isfile(fname):
         return False
     else:
+        return False # yoram 09/25/24: we override this, so that we always overwrite.      
         # Checks if file w/ same channel in directory
-        with pyasdf.ASDFDataSet(fname, mpi=False, mode='r') as rds:
-            read_tnames = rds.waveforms.list()
-            read_tags= [sta.get_waveform_tags() for sta in rds.waveforms]
-            read_records = {read_tnames[i]: read_tags[i][0] for i in range(len(read_tnames))}
-            tname = net + '.' + sta
-            # print(read_records)
-            # if tname in read_records and tag == tname[tag]:
-            # if {tname:tag}.items() <= read_records.items():
-            if ((tname, tag) in read_records.items()):
-                return True
-            else:
-                return False
+        # with pyasdf.ASDFDataSet(fname, mpi=False, mode='r') as rds:
+        #     read_tnames = rds.waveforms.list()
+        #     print(read_tnames)
+        #     read_tags= [sta.get_waveform_tags() for sta in rds.waveforms]
+        #     print(read_tags)
+        #     #{print(read_tnames[i] +'//'+ read_tags[i][0]) for i in range(len(read_tnames))}
+        #     for i in range(len(read_tnames)):
+        #         print(i)
+        #         print(read_tnames[i])
+        #         print(read_tags[i])
+        #         read_records = {read_tnames[i]: read_tags[0][i]} #  for i in range(len(read_tnames))}
+        #     tname = net + '.' + sta
+        #     # print(read_records)
+        #     # if tname in read_records and tag == tname[tag]:
+        #     # if {tname:tag}.items() <= read_records.items():
+        #     if ((tname, tag) in read_records.items()):
+        #         return True
+        #     else:
+        #         return False
 
 def set_filter(samp_freq, pfreqmin,pfreqmax=None):
     if pfreqmax is None:
@@ -350,7 +358,7 @@ def set_filter(samp_freq, pfreqmin,pfreqmax=None):
 def download(starttime, endtime, stationinfo=None, network=None, station=None,channel=None,
                 source='IRIS',rawdatadir=None,sacheader=False, getstainv=True, max_tries=10,
                 savetofile=False,pressure_chan=None,samp_freq=None,freqmin=0.001,freqmax=None,
-                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None,verbose=False,credentials=None):
+                rmresp=True, rmresp_out='DISP',respdir=None,qc=True,event=None,verbose=False,credentials=None,download_local=False):
     """
     starttime, endtime: timing duration for the download.
     stationinfo:
@@ -453,9 +461,15 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
     sta_inv_list=[]
     #loop through all stations.
     for i in range(len(station)):
-        inet=network[i]
+        if len(network)>1:
+            inet=network[i]
+        else: inet=network[0]
+        if len(channel)>1:
+            ichan = channel[i]
+        else: ichan = channel[0]
+        
+        # the station should always be a pair
         ista=station[i]
-        ichan=channel[i]
 
         for nt in range(max_tries):
             if verbose:print(inet+'.'+ista + '.' + ichan + '  downloading ... try ' + str(nt + 1))
@@ -466,7 +480,16 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             if pressure_chan is not None and ichan in pressure_chan:
                 rmresp_out_tmp='PRESSURE'
             try:
-                output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
+                if download_local:
+                    output = get_local_data('/data/stor/basic_data/seismic_data/day_vols/TURNER/','/data/stor/basic_data/seismic_data/day_vols/TURNER/resp/Turner_station_20240924.xml',
+                                            inet, ista, sdatetime, edatetime, chan=ichan, source=source,
+                                        samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
+                                       pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose)
+                    print('getting local data')
+                    print(output)
+                else:
+                    print('still went to iris get data')
+                    output = getdata(inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose,credentials=credentials)
             except Exception as e:
@@ -485,6 +508,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
             tag = get_tracetag(tr)
             chan = tr.stats.channel
 
+            if verbose:print(tr),tr.plot()
             """
             Add cleanup
             """
@@ -529,6 +553,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                         break
                 else:
                     if savetofile:
+                        #print('Name check:'+fname+ista+inet+tag)
                         in_dir = in_directory(fname, ista, inet, tag)
                         """
                         Save to ASDF file.
@@ -602,7 +627,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
             elif rm_resp == 'RESP':
                 print('remove response using RESP files')
                 resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
-                print(resp)
+                #print(resp)
                 if len(resp)==0:
                     raise ValueError('no RESP files found for %s' % netstachan)
                 seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
@@ -656,7 +681,7 @@ def read_data(files,rm_resp='no',respdir='.',freqmin=None,freqmax=None,rm_resp_o
         return Stream(tr_all)
 
 def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=None,rm_resp_out='VEL',
-                water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None,start_dt=None,end_dt=None):
+                water_level=60,samp_freq=None,outdir='.',stainfo=None,outfile=None):
     """
     Wrapper to read local data and (optionally) remove instrument response, and gather station inventory.
 
@@ -670,8 +695,6 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
     rm_resp_out: the ouptut unit for removing response, default is 'VEL', could be "DIS"
     outdir: directory to save the asdf file.
     outfile: filename
-    start_dt: force h5 file out to agglomerate from this startdate
-    end_dt: force h5 file out to agglomerate until this enddate
 
     """
     if isinstance(files,str):files=[files]
@@ -691,6 +714,7 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
         chan=tr[0].stats.channel
         netstachan=net+"."+sta+"."+chan
         date_info = {'starttime':tr[0].stats.starttime,'endtime':tr[0].stats.endtime}
+        
         if rm_resp != 'no':
             if rm_resp == 'spectrum':
                 print('remove response using spectrum')
@@ -708,7 +732,7 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
                     resp = glob.glob(os.path.join(respdir,'RESP.'+netstachan+'*'))
                 else:
                     resp = [respfile]
-                print(resp)
+                #print(resp)
                 if len(resp)==0:
                     raise ValueError('no RESP files found for %s' % netstachan)
                 seedresp = {'filename':resp[0],'date':date_info['starttime'],'units':rm_resp_out}
@@ -761,13 +785,8 @@ def ms2asdf(files,rm_resp='no',respdir='.',respfile=None,freqmin=None,freqmax=No
                 inv=read_inventory(stainfo)
 
         tag = get_tracetag(tr[0])
-        if start_dt is not None and end_dt is not None:
-            sdatetime = start_dt
-            edatetime = end_dt 
-        else: 
-            sdatetime=tr[0].stats.starttime
-            edatetime=tr[0].stats.endtime
-
+        sdatetime=tr[0].stats.starttime
+        edatetime=tr[0].stats.endtime
         fname = os.path.join(outdir,str(sdatetime).replace(':', '-') + 'T' + str(edatetime).replace(':', '-') + '.h5')
         print(" Saving data to ", fname )
         utils.save2asdf(fname,[tr[0]],[tag],sta_inv=inv)
@@ -916,3 +935,189 @@ def get_event_waveforms(event,stainfo,window=150,offset=-50,arrival_type='first'
             return Stream(trall),invall
         else:
             return Stream(trall)
+
+
+################################################################################################################
+## own version of get data 
+import obspy 
+import glob
+def get_local_data(data_dir, response_file,net,sta,starttime,endtime,chan,source='IRIS',samp_freq=None,
+            rmresp=True,rmresp_output='VEL',pre_filt=None,debug=False,
+            sacheader=False,getstainv=False,verbose=False):
+    """
+    This is a wrapper that downloads seismic data and (optionally) removes response
+    and downsamples if needed. Most of the arguments have the same meaning as for
+    obspy.Client.get_waveforms().
+
+    Parameters
+    ----------
+    net,sta,chan : string
+            network, station, and channel names for the request.
+    starttime, endtime : UTCDateTime
+            Starting and ending date time for the request.
+    source : string.  It can also be a Client object.
+            Client names.
+            To get a list of available clients:
+            >> from obspy.clients.fdsn.header import URL_MAPPINGS
+            >> for key in sorted(URL_MAPPINGS.keys()):
+                 print("{0:<11} {1}".format(key,  URL_MAPPINGS[key]))
+    samp_freq : float
+            Target sampling rate. Skip resampling if None.
+    rmresp : bool
+            Remove response if true. For the purpose of download OBS data and remove
+            tilt and compliance noise, the output is "VEL" for pressure data and "DISP"
+            for seismic channels.
+    rmresp_output : string
+            Output format when removing the response, following the same rule as by OBSPY.
+            The default is 'VEL' for velocity output.
+    pre_filt : :class: `numpy.ndarray`
+            Same as the pre_filt in obspy when removing instrument responses.
+    debug : bool
+            Plot raw waveforms before and after preprocessing.
+    sacheader : bool
+            Key sacheader information in a dictionary using the SAC header naming convention.
+    credentials : credentials for earthscope restricted data 
+            """
+
+    tr = None
+    sac=dict() #place holder to save some sac headers.
+    #check arguments
+    if rmresp:
+        if pre_filt is None:
+            pre_filt = set_filter(samp_freq, 0.001)
+            print("getdata(): pre_filt is not specified. Use 0.001-0.5*samp_freq as "+\
+                    "the filter range when removing response.")
+    """
+    a. Downloading
+    """
+    if sacheader or getstainv or rmresp:
+        inv = obspy.read_inventory(response_file) 
+  
+        if sacheader:
+            tempsta,tempnet,stlo, stla,stel,temploc=utils.sta_info_from_inv(inv)
+            sac['knetwk']=tempnet
+            sac['kstnm']=tempsta
+            sac['stlo']=stlo
+            sac['stla']=stla
+            sac['stel']=stel
+            sac['kcmpnm']=chan
+            sac['khole']=temploc
+
+
+    # make the list of files we are interested in 
+            # get the days of year in this time chunk 
+    day_of_year_numbers = []
+    files =[]
+    sdatetime = obspy.UTCDateTime(starttime)
+    edatetime = obspy.UTCDateTime(endtime)
+    current_time = sdatetime
+    while current_time <= edatetime:
+        day_of_year_numbers.append(current_time.julday)
+        day_number = str(current_time.julday)
+        if len(day_number)==1:
+            day_number = '00'+day_number
+        elif len(day_number)==2:
+            day_number = '0'+day_number
+        year_number = str(current_time.year)
+        current_time += 86400  # Increment by one day (86400 seconds)    
+        file = glob.glob(data_dir + sta + '/' + sta +'.'+net+'.??.'+ chan +'.'+year_number+'.'+day_number)
+        # if verbose:print(data_dir+ sta +'/' + sta +'.'+net+'.??.'+ chan +'.'+year_number+'.'+day_number)
+        files.extend(file)
+    if verbose:print(files)
+    #  READ THE FILES 
+    st = obspy.Stream()
+
+    for f in files:
+        st += obspy.read(f)
+    st.merge(fill_value='interpolate')
+    tr = st
+    # # pressure channel
+    # tr=client.get_waveforms(network=net,station=sta,
+    #                 channel=chan,location="*",starttime=starttime,endtime=endtime)
+#     trP[0].detrend()
+    if verbose:print('number of segments downloaded: '+str(len(tr)))
+    # if verbose:
+    #     if isinstance(tr, Trace):
+    #         print("The object is a Trace.")
+    #     else:
+    #         print("The object is NOT a Trace.")
+
+    tr[0].stats['sac']=sac
+
+    if verbose:print("station "+net+"."+sta+" --> seismic channel: "+chan)
+
+    if debug:
+        year = tr[0].stats.starttime.year
+        julday = tr[0].stats.starttime.julday
+        hour = tr[0].stats.starttime.hour
+        mnt = tr[0].stats.starttime.minute
+        sec = tr[0].stats.starttime.second
+        tstamp = str(year) + '.' + str(julday)+'T'+str(hour)+'-'+str(mnt)+'-'+str(sec)
+        trlabels=[net+"."+sta+"."+tr[0].stats.channel]
+    """
+    b. Resampling
+    """
+    if samp_freq is not None:
+        sps=int(tr[0].stats.sampling_rate)
+        delta = tr[0].stats.delta
+        #assume pressure and vertical channels have the same sampling rat
+        # make downsampling if needed
+        if sps > samp_freq:
+            if verbose:print("  downsamping from "+str(sps)+" to "+str(samp_freq))
+            for r in tr:
+                if np.sum(np.isnan(r.data))>0:
+                    raise(Exception('NaN found in trace'))
+                else:
+                    r.interpolate(samp_freq,method='weighted_average_slopes')
+                    # when starttimes are between sampling points
+                    fric = r.stats.starttime.microsecond%(delta*1E6)
+                    if fric>1E-4:
+                        r.data = utils.segment_interpolate(np.float32(r.data),float(fric/(delta*1E6)))
+                        #--reset the time to remove the discrepancy---
+                        r.stats.starttime-=(fric*1E-6)
+                # print('new sampling rate:'+str(tr.stats.sampling_rate))
+
+    # """
+    # c. Plot raw data before removing responses.
+    # """
+    # if debug:
+    #     utils.plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=["raw"],
+    #                     outfile=net+"."+sta+"_"+tstamp+"_raw.png")
+
+    """
+    d. Remove responses
+    """
+    if rmresp:
+        for r in tr:
+            if np.sum(np.isnan(r.data))>0:
+                raise(Exception('NaN found in trace'))
+            else:
+                try:
+                    if verbose:print('  removing response using inv for '+net+"."+sta+"."+r.stats.channel)
+                    r.attach_response(inv)
+                    r.remove_response(output=rmresp_output,pre_filt=pre_filt,
+                                              water_level=60,zero_mean=True,plot=False)
+                except Exception as e:
+                    print(e)
+                    r = []
+    for r in tr:
+        r.detrend('demean')
+        r.detrend('linear')
+        r.taper(0.005)
+
+    if len(tr.get_gaps())>0:
+        if verbose:print('merging segments with gaps')
+        tr.merge(fill_value=0)
+    tr=tr[0]
+    """
+    e. Plot raw data after removing responses.
+    """
+    # if debug:
+    #     plot_trace([tr],size=(12,3),title=trlabels,freq=[0.005,0.1],ylabels=[rmresp_output],
+    #                outfile=net+"."+sta+"_"+tstamp+"_raw_rmresp.png")
+
+    #
+    if getstainv:return tr,inv
+    else: return tr
+
+
