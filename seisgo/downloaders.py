@@ -481,7 +481,7 @@ def download(starttime, endtime, stationinfo=None, network=None, station=None,ch
                 rmresp_out_tmp='PRESSURE'
             try:
                 if download_local:
-                    output = get_local_data('/data/stor/basic_data/seismic_data/day_vols/TURNER/','/data/stor/basic_data/seismic_data/day_vols/TURNER/resp/Turner_station_20240924.xml',
+                    output = get_local_data('/data/stor/basic_data/seismic_data/day_vols/TURNER/','/data/stor/basic_data/seismic_data/day_vols/TURNER/resp/xml_files/Turner_station_20240924.xml',
                                             inet, ista, sdatetime, edatetime, chan=ichan, source=source,
                                         samp_freq=samp_freq, rmresp=rmresp, rmresp_output=rmresp_out_tmp,
                                        pre_filt=pre_filt, sacheader=sacheader, getstainv=getstainv,verbose=verbose)
